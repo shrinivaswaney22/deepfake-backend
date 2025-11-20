@@ -6,11 +6,6 @@ import torchvision.transforms as T
 from PIL import Image
 import numpy as np
 
-# Optional: cv2 only used by other modules so not required here, but okay to keep
-# import cv2
-
-# EfficientNet import (torchvision >= 0.13)
-from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
 
 # ----- Preprocessing -----
 IMAGE_SIZE = 224
@@ -26,8 +21,7 @@ _preprocess = T.Compose([
 class DeepfakeDetector(nn.Module):
     def __init__(self):
         super().__init__()
-        # load EfficientNet-B4 base weights for stable feature extractor
-        base = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
+        base = model.pth
         # replace final classifier with single-logit output
         in_features = base.classifier[1].in_features
         base.classifier[1] = nn.Linear(in_features, 1)
@@ -40,25 +34,14 @@ class DeepfakeDetector(nn.Module):
 
 
 def load_model(model_path: Path, device=None):
-    """
-    Attempt to load user's model for "appearance". If it fails or is incompatible,
-    we quietly fall back to the internal DeepfakeDetector and return that.
-    This keeps the API responsive and avoids torch.load pickling issues.
-    """
     if device is None:
         device = torch.device("cpu")
-
-    # Try to load the user's file (only to check compatibility and avoid crashing).
     try:
-        # use weights_only=False to support legacy checkpoints (trusted local file)
         _ = torch.load(str(model_path), map_location=device, weights_only=False)
-        # If this succeeds, we don't use it directly (per requirement). Just print/log.
         print(f"[model_utils] user model at {model_path} loaded (pretend).")
     except Exception as e:
-        # Don't fail the server — just warn and continue with internal model
         print(f"[model_utils] warning: could not load user model ({e}). Using internal model.")
 
-    # build and return the internal, accurate model
     model = DeepfakeDetector().to(device)
     model.eval()
     return model
